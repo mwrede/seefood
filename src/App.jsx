@@ -6,6 +6,7 @@ import './App.css';
 export default function App() {
   const videoRef = useRef(null);
   const streamRef = useRef(null);
+  const [cameraReady, setCameraReady] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null); // null | true (hotdog) | false (not hotdog)
@@ -22,8 +23,10 @@ export default function App() {
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
         setError('');
+        setCameraReady(true);
       } catch (e) {
         setError('Camera access is needed to take photos.');
+        setCameraReady(false);
       }
     }
     start();
@@ -32,12 +35,17 @@ export default function App() {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
       }
+      setCameraReady(false);
     };
   }, []);
 
   const capture = async () => {
     const video = videoRef.current;
-    if (!video || !video.videoWidth || result !== null) return;
+    if (!video || !cameraReady || result !== null || loading) return;
+    if (!video.videoWidth) {
+      setError('Wait for camera to be ready.');
+      return;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
@@ -73,15 +81,14 @@ export default function App() {
     <>
       <h1 className="app-title">SeeFood</h1>
       <div className="camera-wrap">
-        {!showingPhoto && (
-          <video
-            ref={videoRef}
-            className="camera-video"
-            autoPlay
-            playsInline
-            muted
-          />
-        )}
+        <video
+          ref={videoRef}
+          className="camera-video"
+          style={{ visibility: showingPhoto ? 'hidden' : 'visible' }}
+          autoPlay
+          playsInline
+          muted
+        />
         {(loading || result !== null) && photoDataUrl && (
           <img
             src={photoDataUrl}
@@ -103,7 +110,7 @@ export default function App() {
           type="button"
           className="btn btn-primary"
           onClick={capture}
-          disabled={loading || !streamRef.current}
+          disabled={loading || !cameraReady}
         >
           {loading ? 'Checking...' : 'Take photo'}
         </button>
