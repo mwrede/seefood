@@ -1,6 +1,40 @@
-const WORKFLOW_BASE = 'https://serverless.roboflow.com';
 const WORKSPACE = 'michael-h89ju';
+const WORKFLOW_BASE = import.meta.env.VITE_ROBOFLOW_WORKFLOW_BASE || 'https://detect.roboflow.com';
 const WORKFLOW_ID = 'custom-workflow-8';
+const MAX_IMAGE_DIM = 1024;
+
+/**
+ * Resize image to max dimension for smaller payload and fewer 400s.
+ */
+function resizeImageToDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      let w = img.width;
+      let h = img.height;
+      if (w <= MAX_IMAGE_DIM && h <= MAX_IMAGE_DIM) {
+        resolve(dataUrl);
+        return;
+      }
+      if (w > h) {
+        h = Math.round((h * MAX_IMAGE_DIM) / w);
+        w = MAX_IMAGE_DIM;
+      } else {
+        w = Math.round((w * MAX_IMAGE_DIM) / h);
+        h = MAX_IMAGE_DIM;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = dataUrl;
+  });
+}
 
 /**
  * Run Roboflow workflow on a base64 image.
@@ -8,7 +42,8 @@ const WORKFLOW_ID = 'custom-workflow-8';
  * @returns {Promise<{ isHotdog: boolean, raw: object }>}
  */
 export async function runWorkflow(base64Image) {
-  let value = base64Image;
+  const resized = await resizeImageToDataUrl(base64Image);
+  let value = resized;
   if (value.includes(',')) {
     value = value.split(',')[1];
   }
@@ -30,12 +65,23 @@ export async function runWorkflow(base64Image) {
     body: JSON.stringify(body),
   });
 
+  const text = await res.text();
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `Workflow failed: ${res.status}`);
+    let msg = text || `Workflow failed: ${res.status}`;
+    try {
+      const errJson = JSON.parse(text);
+      if (errJson?.message) msg = errJson.message;
+      else if (errJson?.detail) msg = typeof errJson.detail === 'string' ? errJson.detail : JSON.stringify(errJson.detail);
+    } catch (_) {}
+    throw new Error(msg);
   }
 
-  const raw = await res.json();
+  let raw;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error('Invalid response from workflow');
+  }
   const isHotdog = parseWorkflowResult(raw);
   return { isHotdog, raw };
 }
