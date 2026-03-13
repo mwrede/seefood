@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SeeFood</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #111; color: #fff; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    h1 { margin: 12px 0; font-size: 1.5rem; }
+    .camera-wrap { position: relative; width: 100%; max-width: 400px; aspect-ratio: 3/4; overflow: hidden; border-radius: 12px; background: #000; }
+    #camera, #photo, .overlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    #photo { display: none; }
+    .overlay { display: none; pointer-events: none; }
+    .overlay.visible { display: flex; }
+    .overlay-green { background: linear-gradient(to bottom, rgba(34, 139, 34, 0.85) 0%, rgba(34, 139, 34, 0.85) 28%, transparent 50%); flex-direction: column; align-items: center; justify-content: flex-start; padding-top: 24px; }
+    .overlay-red { background: linear-gradient(to top, rgba(180, 0, 0, 0.9) 0%, rgba(180, 0, 0, 0.9) 32%, transparent 50%); flex-direction: row; align-items: flex-end; justify-content: center; padding-bottom: 24px; gap: 12px; }
+    .overlay-label { font-size: 1.75rem; font-weight: bold; color: #fff; text-shadow: 0 1px 2px #000; }
+    .overlay-icon { width: 64px; height: 64px; border-radius: 50%; border: 4px solid #fff; display: flex; align-items: center; justify-content: center; background: transparent; color: #fff; font-size: 2rem; }
+    .overlay-green .overlay-icon { background: rgba(34, 139, 34, 0.95); }
+    .overlay-red .overlay-icon { background: rgba(180, 0, 0, 0.95); }
+    .btn { margin: 12px; padding: 12px 24px; font-size: 1rem; border-radius: 8px; border: none; cursor: pointer; background: #2a2a2a; color: #fff; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn.primary { background: #0a7c42; }
+    #resultVideo { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+    .error { color: #f88; margin: 8px; }
+    .about { margin-top: 24px; text-align: center; }
+    .about-link { color: #4a9eff; text-decoration: none; font-size: 0.95rem; }
+    .about-link:hover { text-decoration: underline; }
+    .about-content { margin-top: 8px; font-size: 0.9rem; color: #aaa; max-width: 320px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <h1>SeeFood</h1>
+  <div class="camera-wrap">
+    <video id="camera" autoplay playsinline muted></video>
+    <img id="photo" alt="Captured" />
+    <div id="overlayGreen" class="overlay overlay-green">
+      <span class="overlay-label">Hotdog</span>
+      <div class="overlay-icon">✓</div>
+    </div>
+    <div id="overlayRed" class="overlay overlay-red">
+      <div class="overlay-icon">✕</div>
+      <span class="overlay-label">Not hotdog</span>
+    </div>
+  </div>
+  <div id="error" class="error"></div>
+  <button id="captureBtn" class="btn primary">Take photo</button>
+  <button id="retakeBtn" class="btn" style="display: none;">Retake</button>
+
+  <video id="resultVideo" playsinline></video>
+
+  <div class="about">
+    <a href="#" class="about-link" id="aboutLink">About</a>
+    <p class="about-content" id="aboutContent" style="display: none;">Detect hotdog. Invest. Current valuation $2B pre-seed.</p>
+  </div>
+
+  <script>
+    const camera = document.getElementById('camera');
+    const photo = document.getElementById('photo');
+    const overlayGreen = document.getElementById('overlayGreen');
+    const overlayRed = document.getElementById('overlayRed');
+    const captureBtn = document.getElementById('captureBtn');
+    const retakeBtn = document.getElementById('retakeBtn');
+    const errorEl = document.getElementById('error');
+    const resultVideo = document.getElementById('resultVideo');
+
+    const HOTDOG_VIDEO = '/static/videos/hotdog.mp4';
+    const NOT_HOTDOG_VIDEO = '/static/videos/not_hotdog.mp4';
+
+    let stream = null;
+    let showingResult = false;
+
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        camera.srcObject = stream;
+        errorEl.textContent = '';
+      } catch (e) {
+        errorEl.textContent = 'Camera access needed.';
+      }
+    }
+
+    function stopCamera() {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+
+    function showOverlay(isYes) {
+      overlayGreen.classList.toggle('visible', isYes);
+      overlayRed.classList.toggle('visible', !isYes);
+    }
+
+    function hideOverlays() {
+      overlayGreen.classList.remove('visible');
+      overlayRed.classList.remove('visible');
+    }
+
+    function playResultVideo(isYes) {
+      resultVideo.src = isYes ? HOTDOG_VIDEO : NOT_HOTDOG_VIDEO;
+      resultVideo.load();
+      resultVideo.play().catch(() => {});
+    }
+
+    captureBtn.addEventListener('click', async () => {
+      if (showingResult) return;
+      const canvas = document.createElement('canvas');
+      canvas.width = camera.videoWidth;
+      canvas.height = camera.videoHeight;
+      canvas.getContext('2d').drawImage(camera, 0, 0);
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        captureBtn.disabled = true;
+        errorEl.textContent = '';
+        const form = new FormData();
+        form.append('image', blob, 'photo.jpg');
+        try {
+          const res = await fetch('/predict', { method: 'POST', body: form });
+          const data = await res.json();
+          const isYes = data.result === 'yes';
+          showingResult = true;
+          camera.style.display = 'none';
+          photo.src = canvas.toDataURL('image/jpeg');
+          photo.style.display = 'block';
+          showOverlay(isYes);
+          playResultVideo(isYes);
+          retakeBtn.style.display = 'inline-block';
+        } catch (e) {
+          errorEl.textContent = e.message || 'Request failed';
+        }
+        captureBtn.disabled = false;
+      }, 'image/jpeg', 0.9);
+    });
+
+    retakeBtn.addEventListener('click', () => {
+      showingResult = false;
+      hideOverlays();
+      photo.style.display = 'none';
+      photo.src = '';
+      camera.style.display = 'block';
+      retakeBtn.style.display = 'none';
+    });
+
+    document.getElementById('aboutLink').addEventListener('click', (e) => {
+      e.preventDefault();
+      const content = document.getElementById('aboutContent');
+      content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    });
+
+    startCamera();
+  </script>
+</body>
+</html>
