@@ -1,46 +1,36 @@
 # SeeFood
 
-Detect hotdogs with your camera. Take a photo — get a green overlay and sound for hotdog, red overlay and sound for not hotdog.
+Take a photo of anything — the app runs a Roboflow workflow to detect whether it’s a hotdog and shows a green overlay (Hotdog ✓) or red overlay (Not hotdog ✕).
 
 ## Run locally
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python app.py
+npm install
+npm run dev
 ```
 
-Open http://localhost:5000
+Open http://localhost:5173 and allow camera access.
 
-## Deploy to GitHub
-
-1. Create a new repository on [GitHub](https://github.com/new) (e.g. `seefood`). Do **not** add a README or .gitignore (this repo already has them).
-
-2. In the project folder, run:
+## Build
 
 ```bash
-cd "/Users/michaelwrede/Downloads/hot dog app"
-git init
-git add .
-git commit -m "Initial commit: SeeFood app"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-git push -u origin main
+npm run build
 ```
 
-Replace `YOUR_USERNAME` and `YOUR_REPO_NAME` with your GitHub username and repo name.
+Output is in `dist/`.
 
-## Deploy to Vercel
+## Environment (optional)
 
-1. Go to [vercel.com](https://vercel.com) and sign in (GitHub is easiest).
+- `VITE_ROBOFLOW_API_KEY` – Roboflow API key for the workflow. If unset, the app uses a default key.
 
-2. Click **Add New…** → **Project**.
+## Deploy (Vercel)
 
-3. **Import** your SeeFood GitHub repo. Vercel will detect the Flask app.
+1. Push to GitHub.
+2. In [Vercel](https://vercel.com), import the repo.
+3. Build command: `npm run build`, output directory: `dist`.
+4. Add `VITE_ROBOFLOW_API_KEY` in Project Settings → Environment Variables if you use a different key.
 
-4. Leave **Root Directory** as `.` and **Framework Preset** as Other (or Flask if shown). Click **Deploy**.
+## Tech
 
-5. After deploy, your app will be at `https://your-project.vercel.app`. The main page is served from `public/`; `/predict` runs the Flask backend.
-
-**Note:** Camera and microphone need a **secure context** (HTTPS). Vercel gives you HTTPS, so the camera will work on the deployed URL. For local HTTP, some browsers may restrict camera access.
+- React + Vite
+- Roboflow Serverless Workflow API (`michael-h89ju` / `custom-workflow-8`)

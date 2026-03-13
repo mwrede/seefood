@@ -1,27 +1,7 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.venv/
-venv/
-env/
-.Python
-*.egg-info/
-.eggs/
-dist/
-build/
-
-# Env
+node_modules
+dist
 .env
 .env.local
-*.local
-
-# IDE
-.idea/
-.vscode/
-*.swp
+.env.*.local
+*.log
 .DS_Store
-
-# Vercel
-.vercel
